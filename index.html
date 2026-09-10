@@ -1,200 +1,241 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hex Color Text Live Preview</title>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PayPal CSV Colorizer</title>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <style>
-    * {
-        box-sizing: border-box;
-    }
-
-    body {
-        margin: 0;
-        padding: 30px;
-        font-family: system-ui, sans-serif;
-        background: #f5f5f5;
-        color: #222;
-    }
-
-    .app {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-
-    .workspace {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 20px;
-        align-items: start;
-    }
-
-    .panel {
-        min-width: 0;
-    }
-
-    .panel-title {
-        margin: 0 0 8px;
-        font-size: 16px;
-        font-weight: 600;
-    }
-
-    textarea {
-        display: block;
-        width: 100%;
-        min-height: 500px;
-        padding: 16px;
-        resize: vertical;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        background: white;
-        font: 14px/1.5 monospace;
-        outline: none;
-    }
-
-    textarea:focus {
-        border-color: #888;
-    }
-
-    .preview {
-        min-height: 500px;
-        padding: 16px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        background: white;
-        overflow: auto;
-    }
-
-    .row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        min-height: 48px;
-        padding: 4px 0 28px;
-    }
-
-    .row + .row {
-        border-top: 1px solid #eee;
-        margin-top: 8px;
-        padding-top: 12px;
-    }
-
-    .swatch {
-        width: 44px;
-        height: 44px;
-        border-radius: 4px;
-        border: 1px solid rgba(0, 0, 0, 0.15);
-        position: relative;
-        cursor: default;
-    }
-
-    .swatch span {
-        position: absolute;
-        left: 50%;
-        bottom: -22px;
-        transform: translateX(-50%);
-        white-space: nowrap;
-        font: 11px monospace;
-        color: #555;
-    }
-
-    .empty {
-        color: #999;
-        font-size: 14px;
-    }
-
-    @media (max-width: 700px) {
-        .workspace {
-            grid-template-columns: 1fr;
-        }
-
-        textarea,
-        .preview {
-            min-height: 300px;
-        }
-    }
+  body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:760px;margin:60px auto;padding:0 24px;background:#f7f7f5;color:#222}
+  h1{font-size:25px;font-weight:600}
+  .box{background:white;border:1px solid #ddd;border-radius:12px;padding:28px}
+  input{margin:14px 0}
+  button{background:#222;color:white;border:0;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer}
+  button:disabled{opacity:.4;cursor:default}
+  #status{margin-top:18px;color:#555;white-space:pre-line}
+  small{color:#777}
 </style>
 </head>
-
 <body>
-
-<div class="app">
-    <div class="workspace">
-        <section class="panel">
-            <h2 class="panel-title">Text</h2>
-
-            <textarea id="input" spellcheck="false">"F2D98D","B8D39B","83B5D2","B8ADD0","D98F8F",
-"8CB8BE","E3B17E","A394C2","91B6D4","A8C98F"
-
-#ff0000
-0x00ff00
-112233
-#33669980</textarea>
-        </section>
-
-        <section class="panel">
-            <h2 class="panel-title">Preview</h2>
-            <div class="preview" id="preview"></div>
-        </section>
-    </div>
+<h1>PayPal CSV Colorizer</h1>
+<div class="box">
+  <div>CSV-Datei auswählen:</div>
+  <input id="file" type="file" accept=".csv,text/csv">
+  <br>
+  <button id="go" disabled>CSV einfärben und XLSX erzeugen</button>
+  <div id="status"></div>
+  <p><small>Gruppierung über „Transaktionscode“ und „Zugehöriger Transaktionscode“. Auch Einzelzeilen erhalten eine Farbe.</small></p>
 </div>
 
 <script>
-const input = document.getElementById("input");
-const preview = document.getElementById("preview");
+const COLORS = [
+	"F2D98D","B8D39B","83B5D2","A394C2","D98F8F","E3B17E"
+];
 
-const hexRegex = /(?<![A-Za-z0-9])(?:#|0x)?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})(?![A-Za-z0-9])/g;
+const fileInput = document.getElementById("file");
+const go = document.getElementById("go");
+const status = document.getElementById("status");
+let selectedFile = null;
 
-function normalizeColor(value) {
-    if (value.length === 3 || value.length === 4) {
-        return "#" + [...value].map(character => character + character).join("");
-    }
+fileInput.addEventListener("change", () => {
+  selectedFile = fileInput.files[0] || null;
+  go.disabled = !selectedFile;
+  status.textContent = selectedFile ? selectedFile.name : "";
+});
 
-    return "#" + value;
+function norm(s) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("ä", "a")
+    .replaceAll("ö", "o")
+    .replaceAll("ü", "u")
+    .replaceAll("ß", "ss")
+    .replaceAll(" ", "");
 }
 
-function updatePreview() {
-    preview.innerHTML = "";
+function detectDelimiter(text) {
+  const first = text.replace(/^\uFEFF/, "").split(/\r?\n/).find(x => x.trim());
+  if (!first) return ",";
+  const counts = [",",";","\t"].map(d => [d, (first.match(new RegExp(
+    d === "\t" ? "\\t" : "\\" + d, "g")) || []).length]);
+  return counts.sort((a,b) => b[1]-a[1])[0][0] || ",";
+}
 
-    if (input.value === "") {
-        preview.innerHTML = '<div class="empty">Colors will appear here...</div>';
-        return;
+// RFC4180-ish CSV parser with quoted fields.
+function parseCSV(text, delimiter) {
+  text = text.replace(/^\uFEFF/, "");
+  const out = [];
+  let row = [], field = "", quoted = false;
+  for (let i=0;i<text.length;i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; }
+        else quoted = false;
+      } else field += ch;
+    } else {
+      if (ch === '"') quoted = true;
+      else if (ch === delimiter) { row.push(field); field=""; }
+      else if (ch === "\n") { row.push(field); out.push(row); row=[]; field=""; }
+      else if (ch !== "\r") field += ch;
+    }
+  }
+  row.push(field);
+  if (row.length > 1 || row[0] !== "") out.push(row);
+  return out;
+}
+
+function makeGroups(rows, txCol, relCol) {
+  const n = rows.length;
+  const parent = Array.from({length:n}, (_,i)=>i);
+
+  function find(x) {
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  }
+  function union(a,b) {
+    a=find(a); b=find(b);
+    if (a !== b) parent[b]=a;
+  }
+
+  const txMap = new Map();
+  const relMap = new Map();
+
+  rows.forEach((r,i) => {
+    const tx = String(r[txCol] ?? "").trim();
+    const rel = String(r[relCol] ?? "").trim();
+    if (tx) {
+      if (!txMap.has(tx)) txMap.set(tx,[]);
+      txMap.get(tx).push(i);
+    }
+    if (rel) {
+      if (!relMap.has(rel)) relMap.set(rel,[]);
+      relMap.get(rel).push(i);
+    }
+  });
+
+  // Identical transaction codes belong together.
+  for (const indices of txMap.values())
+    for (let j=1;j<indices.length;j++) union(indices[0],indices[j]);
+
+  // A related transaction code connects to the row(s) carrying that transaction code.
+  for (const [rel, indices] of relMap.entries()) {
+    const targets = txMap.get(rel) || [];
+    for (const i of indices)
+      for (const j of targets) union(i,j);
+  }
+
+  // Identical related codes also belong together.
+  for (const indices of relMap.values())
+    for (let j=1;j<indices.length;j++) union(indices[0],indices[j]);
+
+  const groups = new Map();
+  for (let i=0;i<n;i++) {
+    const root=find(i);
+    if (!groups.has(root)) groups.set(root,[]);
+    groups.get(root).push(i);
+  }
+
+  // Preserve first appearance in the CSV.
+  return [...groups.values()].sort((a,b)=>a[0]-b[0]);
+}
+
+go.addEventListener("click", async () => {
+  if (!selectedFile) return;
+
+  try {
+    status.textContent = "Verarbeite...";
+    const text = await selectedFile.text();
+    const delimiter = detectDelimiter(text);
+    const data = parseCSV(text, delimiter);
+
+    if (data.length < 1) throw new Error("CSV ist leer.");
+    const headers = data[0];
+    const rows = data.slice(1).filter(r => r.some(x => String(x).trim() !== ""));
+
+    const normalized = headers.map(norm);
+    const txCol = normalized.findIndex(h => h === "transaktionscode");
+    const relCol = normalized.findIndex(h => h === "zugehorigertransaktionscode");
+
+    if (txCol < 0 || relCol < 0) {
+      throw new Error(
+        'Benötigte Spalten nicht gefunden. Gefunden wurden: ' + headers.join(" | ")
+      );
     }
 
-    const lines = input.value.split(/\r?\n/);
+    const groups = makeGroups(rows, txCol, relCol);
+    const rowToGroup = new Map();
+    groups.forEach((group, gi) => group.forEach(i => rowToGroup.set(i, gi)));
 
-    lines.forEach(line => {
-        const row = document.createElement("div");
-        row.className = "row";
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("PayPal");
 
-        const matches = [...line.matchAll(hexRegex)];
-
-        matches.forEach(match => {
-            const raw = match[0];
-            const hex = match[1];
-            const color = normalizeColor(hex);
-
-            const swatch = document.createElement("div");
-            swatch.className = "swatch";
-            swatch.style.backgroundColor = color;
-            swatch.title = raw;
-
-            const label = document.createElement("span");
-            label.textContent = raw;
-
-            swatch.appendChild(label);
-            row.appendChild(swatch);
-        });
-
-        preview.appendChild(row);
+    // Header
+    const headerRow = worksheet.addRow(headers);
+    headerRow.eachCell(cell => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFB7B7B7" }
+      };
+      cell.font = { bold: true };
     });
-}
 
-input.addEventListener("input", updatePreview);
+    // Every row gets a color, including singleton groups.
+    rows.forEach((row, i) => {
+      const excelRow = worksheet.addRow(row);
+      const color = COLORS[rowToGroup.get(i) % COLORS.length];
+      excelRow.eachCell({ includeEmpty: true }, cell => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF" + color }
+        };
+      });
+    });
 
-updatePreview();
+    worksheet.views = [{ state: "frozen", ySplit: 1 }];
+    worksheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: rows.length + 1, column: headers.length }
+    };
+
+    // Reasonable column widths.
+    headers.forEach((header, c) => {
+      let max = String(header).length;
+      for (const r of rows.slice(0, 1000)) {
+        max = Math.max(max, String(r[c] ?? "").length);
+      }
+      worksheet.getColumn(c + 1).width = Math.min(Math.max(max + 2, 10), 45);
+    });
+
+    const base = selectedFile.name.replace(/\.[^.]+$/, "");
+    const outputName = base + "_color.xlsx";
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob(
+      [buffer],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = outputName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    status.textContent =
+      `Fertig: ${outputName}\n${rows.length} Datenzeilen in ${groups.length} zusammenhängenden Gruppen.`;
+  } catch (err) {
+    status.textContent = "Fehler: " + err.message;
+  }
+});
 </script>
-
 </body>
 </html>
