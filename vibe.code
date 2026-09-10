@@ -1,7 +1,7 @@
 ok, paypal csv hat die Spalten Transaktionscode und Zugehöriger Transaktionscode
-ich will 20 hintergrundfarben und dass abwechselnd einzelzeilen und alle solche zueinander gehörenden Zeilengruppen eine Hintegrundfarbe haben sodass ich visuell durch eine paypal csv gehen kann, um zu sortieren, was privat und was business expense ist.
+ich will 6 hintergrundfarben und dass abwechselnd einzelzeilen und alle solche zueinander gehörenden Zeilengruppen eine Hintegrundfarbe haben sodass ich visuell durch eine paypal csv gehen kann, um zu sortieren, was privat und was business expense ist.
 
-PayPal-CSV anhand von „Transaktionscode“ + „Zugehöriger Transaktionscode“ gruppiert und pro Gruppe abwechselnd 20 Hintergrundfarben vergibt
+PayPal-CSV anhand von „Transaktionscode“ + „Zugehöriger Transaktionscode“ gruppiert und pro Gruppe abwechselnd 6 Hintergrundfarben vergibt
 
 Zeilen, die alleine sind, sollen aber auch gefärbt werden.
 
