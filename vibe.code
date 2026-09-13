@@ -1,7 +1,7 @@
 ok, paypal csv hat die Spalten Transaktionscode und Zugehöriger Transaktionscode
-ich will 6 hintergrundfarben und dass abwechselnd einzelzeilen und alle solche zueinander gehörenden Zeilengruppen eine Hintegrundfarbe haben sodass ich visuell durch eine paypal csv gehen kann, um zu sortieren, was privat und was business expense ist.
+ich will 20 hintergrundfarben und dass abwechselnd einzelzeilen und alle solche zueinander gehörenden Zeilengruppen eine Hintegrundfarbe haben sodass ich visuell durch eine paypal csv gehen kann, um zu sortieren, was privat und was business expense ist.
 
-PayPal-CSV anhand von „Transaktionscode“ + „Zugehöriger Transaktionscode“ gruppiert und pro Gruppe abwechselnd 6 Hintergrundfarben vergibt
+PayPal-CSV anhand von „Transaktionscode“ + „Zugehöriger Transaktionscode“ gruppiert und pro Gruppe abwechselnd 20 Hintergrundfarben vergibt
 
 Zeilen, die alleine sind, sollen aber auch gefärbt werden.
 
@@ -16,3 +16,14 @@ Gib Fehler aus, wie zB Spaltenüberschriften nicht gefunden.
 CSV Überschriften sind: `Datum	Name	Typ	Status	Währung	Brutto	Gebühr	Netto	Transaktionscode	Artikelbezeichnung	Versand- und Bearbeitungsgebühr	Versicherungsbetrag	Umsatzsteuer	Zugehöriger Transaktionscode	Rechnungsnummer	Guthaben	Betreff	Hinweis	Auswirkung auf Guthaben`
 
 [anschließend mehrmals Fehlerausgaben füttern, bis die LLM es endlich hinbekommt]
+
+---
+
+In der Spalte 'Typ' sollen die Felder, die folgende Werte enthalten, einen grellgelben Hintergrund erhalten:
+
+Rückbuchung allgemeiner Einbehaltung
+Rückzahlung
+Allgemeine Währungsumrechnung
+Bankgutschrift auf PayPal-Konto
+
+In der Spalte 'Währung' sollen die Felder, die nicht gleich "EUR" sind, auch einen grellgelben Hintergrund erhalten
