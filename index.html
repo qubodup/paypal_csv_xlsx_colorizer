@@ -160,6 +160,8 @@ go.addEventListener("click", async () => {
     const normalized = headers.map(norm);
     const txCol = normalized.findIndex(h => h === "transaktionscode");
     const relCol = normalized.findIndex(h => h === "zugehorigertransaktionscode");
+    const typeCol = normalized.findIndex(h => h === "typ");
+    const currencyCol = normalized.findIndex(h => h === "währung" || h === "wahrung" || h === "waehrung");
 
     if (txCol < 0 || relCol < 0) {
       throw new Error(
@@ -170,6 +172,14 @@ go.addEventListener("click", async () => {
     const groups = makeGroups(rows, txCol, relCol);
     const rowToGroup = new Map();
     groups.forEach((group, gi) => group.forEach(i => rowToGroup.set(i, gi)));
+
+    const highlightedTypes = new Set([
+      "rückbuchung allgemeiner einbehaltung",
+      "rückzahlung",
+      "allgemeine währungsumrechnung",
+      "bankgutschrift auf paypal-konto"
+    ]);
+    const brightYellow = "FFFFFF00";
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("PayPal");
@@ -189,11 +199,20 @@ go.addEventListener("click", async () => {
     rows.forEach((row, i) => {
       const excelRow = worksheet.addRow(row);
       const color = COLORS[rowToGroup.get(i) % COLORS.length];
-      excelRow.eachCell({ includeEmpty: true }, cell => {
+      excelRow.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+        const isHighlightedType =
+          typeCol >= 0 &&
+          columnNumber === typeCol + 1 &&
+          highlightedTypes.has(String(row[typeCol] ?? "").trim().toLowerCase());
+        const isNonEurCurrency =
+          currencyCol >= 0 &&
+          columnNumber === currencyCol + 1 &&
+          String(row[currencyCol] ?? "").trim().toUpperCase() !== "EUR";
+
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "FF" + color }
+          fgColor: { argb: (isHighlightedType || isNonEurCurrency) ? brightYellow : "FF" + color }
         };
       });
     });
