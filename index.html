@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -19,17 +19,17 @@
 <body>
 <h1>PayPal CSV Colorizer</h1>
 <div class="box">
-  <div>CSV-Datei auswählen:</div>
+  <div>Select PayPal CSV file:</div>
   <input id="file" type="file" accept=".csv,text/csv">
   <br>
-  <button id="go" disabled>CSV einfärben und XLSX erzeugen</button>
+  <button id="go" disabled>Color CSV and create XLSX</button>
   <div id="status"></div>
-  <p><small>Gruppierung über „Transaktionscode“ und „Zugehöriger Transaktionscode“. Auch Einzelzeilen erhalten eine Farbe.</small></p>
+  <p><small>Rows are grouped by transaction ID and reference transaction ID. Rows without related transactions are colored individually.</small></p>
 </div>
 
 <script>
 const COLORS = [
-	"F2D98D","B8D39B","83B5D2","A394C2","D98F8F","E3B17E"
+  "F2D98D","B8D39B","83B5D2","A394C2","D98F8F","E3B17E"
 ];
 
 const fileInput = document.getElementById("file");
@@ -148,38 +148,59 @@ go.addEventListener("click", async () => {
   if (!selectedFile) return;
 
   try {
-    status.textContent = "Verarbeite...";
+    status.textContent = "Processing...";
     const text = await selectedFile.text();
     const delimiter = detectDelimiter(text);
     const data = parseCSV(text, delimiter);
 
-    if (data.length < 1) throw new Error("CSV ist leer.");
+    if (data.length < 1) throw new Error("The CSV file is empty.");
     const headers = data[0];
     const rows = data.slice(1).filter(r => r.some(x => String(x).trim() !== ""));
 
     const normalized = headers.map(norm);
-    const txCol = normalized.findIndex(h => h === "transaktionscode");
-    const relCol = normalized.findIndex(h => h === "zugehorigertransaktionscode");
-    const typeCol = normalized.findIndex(h => h === "typ");
-    const currencyCol = normalized.findIndex(h => h === "währung" || h === "wahrung" || h === "waehrung");
+
+    // Support the German and English PayPal column names used by these exports.
+    // Transaction types are only used for highlighting, never for grouping.
+    const txAliases = new Set([
+      "transaktionscode",
+      "transactionid"
+    ]);
+    const relAliases = new Set([
+      "zugehorigertransaktionscode",
+      "referencetxnid"
+    ]);
+    const typeAliases = new Set([
+      "typ",
+      "type"
+    ]);
+    const currencyAliases = new Set([
+      "wahrung",
+      "waehrung",
+      "currency"
+    ]);
+	const balanceImpactAliases = new Set([
+	  "auswirkungaufguthaben",
+	  "balanceimpact"
+	]);
+
+    const txCol = normalized.findIndex(h => txAliases.has(h));
+    const relCol = normalized.findIndex(h => relAliases.has(h));
+    const typeCol = normalized.findIndex(h => typeAliases.has(h));
+    const currencyCol = normalized.findIndex(h => currencyAliases.has(h));
+	const balanceImpactCol = normalized.findIndex(h => balanceImpactAliases.has(h));
 
     if (txCol < 0 || relCol < 0) {
       throw new Error(
-        'Benötigte Spalten nicht gefunden. Gefunden wurden: ' + headers.join(" | ")
+        'Could not find the required transaction ID columns. Supported headers: ' +
+        '"Transaktionscode" / "Zugehöriger Transaktionscode" (German) or ' +
+        '"Transaction ID" / "Reference Txn ID" (English). ' +
+        'Headers found: ' + headers.join(" | ")
       );
     }
 
     const groups = makeGroups(rows, txCol, relCol);
     const rowToGroup = new Map();
     groups.forEach((group, gi) => group.forEach(i => rowToGroup.set(i, gi)));
-
-    const highlightedTypes = new Set([
-      "rückbuchung allgemeiner einbehaltung",
-      "rückzahlung",
-      "allgemeine währungsumrechnung",
-      "bankgutschrift auf paypal-konto"
-    ]);
-    const brightYellow = "FFFFFF00";
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("PayPal");
@@ -196,6 +217,20 @@ go.addEventListener("click", async () => {
     });
 
     // Every row gets a color, including singleton groups.
+    // These German transaction types are highlighted in yellow.
+    // Currency cells are also highlighted when the currency is not EUR.
+    const highlightedTypes = new Set([
+      "rückbuchung allgemeiner einbehaltung",
+	  "general hold release",
+      "rückzahlung",
+	  "payment reversal",
+      "allgemeine währungsumrechnung",
+	  "general currency conversion",
+      "bankgutschrift auf paypal-konto",
+	  "bank deposit to pp account"
+    ]);
+    const brightYellow = "FFFFFF00";
+
     rows.forEach((row, i) => {
       const excelRow = worksheet.addRow(row);
       const color = COLORS[rowToGroup.get(i) % COLORS.length];
@@ -208,11 +243,15 @@ go.addEventListener("click", async () => {
           currencyCol >= 0 &&
           columnNumber === currencyCol + 1 &&
           String(row[currencyCol] ?? "").trim().toUpperCase() !== "EUR";
+		const isMemo =
+		  balanceImpactCol >= 0 &&
+		  columnNumber === balanceImpactCol + 1 &&
+		  String(row[balanceImpactCol] ?? "").trim().toLowerCase() === "memo";
 
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: (isHighlightedType || isNonEurCurrency) ? brightYellow : "FF" + color }
+          fgColor: { argb: (isHighlightedType || isNonEurCurrency || isMemo) ? brightYellow : "FF" + color }
         };
       });
     });
@@ -250,9 +289,9 @@ go.addEventListener("click", async () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 
     status.textContent =
-      `Fertig: ${outputName}\n${rows.length} Datenzeilen in ${groups.length} zusammenhängenden Gruppen.`;
+      `Done: ${outputName}\n${rows.length} data rows in ${groups.length} transaction groups.`;
   } catch (err) {
-    status.textContent = "Fehler: " + err.message;
+    status.textContent = "Error: " + err.message;
   }
 });
 </script>
